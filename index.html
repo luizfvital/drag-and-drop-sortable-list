@@ -378,14 +378,21 @@
           item.classList.add("interact-dragging");
 
           // Create placeholder
-          if (!self.options.controlled) {
-            var placeholder = document.createElement("div");
-            placeholder.className = "interact-placeholder";
-            placeholder.style.height = rect.height + "px";
-            item.parentElement.insertBefore(placeholder, item);
-            self.dragState.placeholder = placeholder;
-            item.style.display = "none";
+
+          var placeholder = item.cloneNode(true);
+          placeholder.classList.remove("interact-dragging");
+          placeholder.classList.add("interact-placeholder");
+          placeholder.removeAttribute("id");
+          placeholder.style.height = rect.height + "px";
+
+          var handle = placeholder.querySelector(self.options.handleSelector);
+          if (handle) {
+            handle.style.visibility = "hidden";
           }
+
+          item.parentElement.insertBefore(placeholder, item);
+          self.dragState.placeholder = placeholder;
+          item.style.display = "none";
 
           // Start auto-scroll monitoring
           self.startAutoScroll();
