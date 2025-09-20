@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>InteractJS Sortable for OutSystems</title>
+
+    <!-- Include interact.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.26/interact.min.js"></script>
+
+    <style>
+      /* ========================================
+           CSS for Sortable List with interact.js
+           ======================================== */
+
+      /* Prevent text selection and touch callouts on mobile */
+      * {
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
+      }
+
+      /* Main scrollable container */
+      .interact-sortable-container {
+        position: relative;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        max-height: 100vh;
+        background: #f5f5f5;
+      }
+
+      /* The sortable list */
+      .interact-sortable-list {
+        padding: 8px;
+        min-height: 100px;
+        position: relative;
+      }
+
+      /* Individual draggable items */
+      .interact-sortable-item {
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        position: relative;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: pan-y;
+      }
+
+      /* Content wrapper inside items */
+      .interact-sortable-item-content {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        min-height: 60px;
+      }
+
+      /* Drag handle */
+      .drag-handle {
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        margin-right: 12px;
+        cursor: move;
+        touch-action: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+        transition: color 0.2s ease;
+      }
+
+      .drag-handle:hover {
+        color: #666;
+      }
+
+      /* Handle icon (hamburger menu) */
+      .drag-handle::before {
+        content: "≡";
+        font-size: 20px;
+        line-height: 1;
+      }
+
+      /* Item content area */
+      .interact-sortable-item-body {
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* Dragging state */
+      .interact-dragging {
+        opacity: 0.5;
+        z-index: 9999;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      }
+
+      /* Ghost/Clone during drag */
+      .interact-drag-clone {
+        position: fixed !important;
+        pointer-events: none;
+        z-index: 10000;
+        opacity: 0.9;
+        /* transform: scale(1.02); */
+        /* box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); */
+      }
+
+      /* Drop zone indicator */
+      .interact-drop-indicator {
+        height: 3px;
+        background: #007bff;
+        border-radius: 2px;
+        margin: 4px 0;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        pointer-events: none;
+      }
+
+      .interact-drop-indicator.active {
+        opacity: 1;
+      }
+
+      /* Placeholder space during drag */
+      .interact-placeholder {
+        background: #e3e3e3;
+        border: 1px dashed #999;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        opacity: 0.5;
+        transition: all 0.2s ease;
+      }
+
+      /* Auto-scroll zones (visual debugging, usually hidden) */
+      .interact-scroll-zone {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 50px;
+        pointer-events: none;
+        z-index: 9998;
+        /* Uncomment to visualize scroll zones during development */
+        /* background: rgba(255, 0, 0, 0.1); */
+      }
+
+      .interact-scroll-zone.top {
+        top: 0;
+      }
+
+      .interact-scroll-zone.bottom {
+        bottom: 0;
+      }
+
+      /* Disabled state */
+      .interact-sortable-item.disabled {
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      /* Demo styles */
+      .demo-container {
+        max-width: 400px;
+        margin: 20px auto;
+        padding: 0 16px;
+      }
+
+      .demo-header {
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .demo-controls {
+        margin-bottom: 20px;
+        padding: 16px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .demo-controls label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: bold;
+      }
+
+      .demo-controls input[type="checkbox"] {
+        margin-right: 8px;
+      }
+
+      .demo-log {
+        margin-top: 20px;
+        padding: 16px;
+        background: #333;
+        color: #0f0;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 12px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Demo HTML Structure -->
+    <div class="demo-container">
+      <div class="demo-header">
+        <h1>InteractJS Sortable for OutSystems</h1>
+        <p>Drag items by their handles to reorder</p>
+      </div>
+
+      <div class="demo-controls">
+        <label>
+          <input type="checkbox" id="controlledMode" checked />
+          Controlled Mode (OutSystems style)
+        </label>
+        <label>
+          <input type="checkbox" id="debugMode" />
+          Debug Mode (show scroll zones)
+        </label>
+      </div>
+
+      <div
+        class="interact-sortable-container"
+        id="sortableContainer"
+        style="max-height: 400px"
+      >
+        <div class="interact-sortable-list" id="sortableList">
+          <!-- Items will be generated by JavaScript -->
+        </div>
+      </div>
+
+      <div class="demo-log" id="eventLog">Event log will appear here...</div>
+    </div>
+
+    <script>
+      /* ==========================================
+           InteractSortableOS - UMD Module
+           ========================================== */
+      (function (root, factory) {
+        if (typeof define === "function" && define.amd) {
+          define(["interact"], factory);
+        } else if (typeof module === "object" && module.exports) {
+          module.exports = factory(require("interact"));
+        } else {
+          root.InteractSortableOS = factory(root.interact);
+        }
+      })(typeof self !== "undefined" ? self : this, function (interact) {
+        "use strict";
+
+        function InteractSortableOS(options) {
+          var self = this;
+
+          // Default options
+          self.options = {
+            list: null,
+            controlled: true,
+            handleSelector: ".drag-handle",
+            itemSelector: ".interact-sortable-item",
+            scrollSpeed: 10,
+            scrollThreshold: 50,
+            lockAxis: "y",
+            animation: true,
+            debug: false,
+          };
+
+          // Merge with provided options
+          if (options) {
+            Object.keys(options).forEach(function (key) {
+              if (options[key] !== undefined) {
+                self.options[key] = options[key];
+              }
+            });
+          }
+
+          // Internal state
+          self.dragState = {
+            item: null,
+            clone: null,
+            placeholder: null,
+            startIndex: -1,
+            currentIndex: -1,
+            scrollInterval: null,
+            originalParent: null,
+            items: [],
+          };
+
+          // Initialize
+          self.init();
+        }
+
+        InteractSortableOS.prototype.init = function () {
+          var self = this;
+
+          if (!self.options.list) {
+            console.error("InteractSortableOS: list element is required");
+            return;
+          }
+
+          // Store reference to container
+          self.container =
+            self.options.list.closest(".interact-sortable-container") ||
+            self.options.list.parentElement;
+
+          // Setup interact.js
+          self.setupInteractable();
+
+          // Setup auto-scroll zones
+          self.setupScrollZones();
+
+          // Listen for custom events
+          self.setupEventListeners();
+
+          if (self.options.debug) {
+            console.log("InteractSortableOS initialized", self.options);
+          }
+        };
+
+        InteractSortableOS.prototype.setupInteractable = function () {
+          var self = this;
+
+          // Make items draggable
+          interact(self.options.itemSelector, {
+            context: self.options.list,
+          })
+            .draggable({
+              enabled: true,
+              allowFrom: self.options.handleSelector,
+              autoScroll: false, // We'll handle scrolling manually
+              lockAxis: self.options.lockAxis,
+              inertia: false,
+
+              onstart: function (event) {
+                self.onDragStart(event);
+              },
+
+              onmove: function (event) {
+                self.onDragMove(event);
+              },
+
+              onend: function (event) {
+                self.onDragEnd(event);
+              },
+            })
+            .styleCursor(false);
+        };
+
+        InteractSortableOS.prototype.onDragStart = function (event) {
+          var self = this;
+          var item = event.target;
+
+          // Prevent text selection on mobile
+          event.interaction.preventDefault = true;
+
+          // Store initial state
+          self.dragState.item = item;
+          self.dragState.originalParent = item.parentElement;
+          self.dragState.items = Array.from(
+            self.options.list.querySelectorAll(self.options.itemSelector)
+          );
+          self.dragState.startIndex = self.dragState.items.indexOf(item);
+          self.dragState.currentIndex = self.dragState.startIndex;
+
+          // Create clone for visual feedback
+          var rect = item.getBoundingClientRect();
+          var clone = item.cloneNode(true);
+          clone.classList.add("interact-drag-clone");
+          clone.style.width = rect.width + "px";
+          clone.style.left = rect.left + "px";
+          clone.style.top = rect.top + "px";
+          document.body.appendChild(clone);
+          self.dragState.clone = clone;
+
+          // Add dragging class to original
+          item.classList.add("interact-dragging");
+
+          // Create placeholder
+          if (!self.options.controlled) {
+            var placeholder = document.createElement("div");
+            placeholder.className = "interact-placeholder";
+            placeholder.style.height = rect.height + "px";
+            item.parentElement.insertBefore(placeholder, item);
+            self.dragState.placeholder = placeholder;
+            item.style.display = "none";
+          }
+
+          // Start auto-scroll monitoring
+          self.startAutoScroll();
+
+          if (self.options.debug) {
+            console.log("Drag started", {
+              index: self.dragState.startIndex,
+              item: item,
+            });
+          }
+        };
+
+        InteractSortableOS.prototype.onDragMove = function (event) {
+          var self = this;
+          var clone = self.dragState.clone;
+
+          if (!clone) return;
+
+          // Update clone position
+          var x = (parseFloat(clone.style.left) || 0) + event.dx;
+          var y = (parseFloat(clone.style.top) || 0) + event.dy;
+
+          // Apply axis lock
+          if (self.options.lockAxis === "y") {
+            x = parseFloat(clone.style.left) || 0;
+          } else if (self.options.lockAxis === "x") {
+            y = parseFloat(clone.style.top) || 0;
+          }
+
+          clone.style.left = x + "px";
+          clone.style.top = y + "px";
+
+          // Check for reordering in optimistic mode
+          if (!self.options.controlled) {
+            self.checkReorder(event);
+          }
+        };
+
+        InteractSortableOS.prototype.checkReorder = function (event) {
+          var self = this;
+          var clone = self.dragState.clone;
+          var placeholder = self.dragState.placeholder;
+
+          if (!clone || !placeholder) return;
+
+          var cloneRect = clone.getBoundingClientRect();
+          var items = Array.from(
+            self.options.list.querySelectorAll(
+              self.options.itemSelector + ":not(.interact-dragging)"
+            )
+          );
+
+          for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            var rect = item.getBoundingClientRect();
+            var midpoint = rect.top + rect.height / 2;
+
+            if (cloneRect.top + cloneRect.height / 2 < midpoint) {
+              if (item.previousElementSibling !== placeholder) {
+                item.parentElement.insertBefore(placeholder, item);
+                self.dragState.currentIndex = i;
+              }
+              break;
+            } else if (i === items.length - 1) {
+              if (item.nextElementSibling !== placeholder) {
+                item.parentElement.insertBefore(
+                  placeholder,
+                  item.nextElementSibling
+                );
+                self.dragState.currentIndex = i + 1;
+              }
+            }
+          }
+        };
+
+        InteractSortableOS.prototype.onDragEnd = function (event) {
+          var self = this;
+          var item = self.dragState.item;
+          var clone = self.dragState.clone;
+          var placeholder = self.dragState.placeholder;
+
+          // Stop auto-scroll
+          self.stopAutoScroll();
+
+          // Calculate final index
+          var finalIndex = self.dragState.currentIndex;
+          if (self.options.controlled) {
+            finalIndex = self.calculateDropIndex(event);
+          }
+
+          // Remove clone
+          if (clone) {
+            clone.remove();
+          }
+
+          // Clean up based on mode
+          if (self.options.controlled) {
+            // Controlled mode: revert DOM changes
+            item.classList.remove("interact-dragging");
+          } else {
+            // Optimistic mode: commit DOM changes
+            if (placeholder) {
+              placeholder.replaceWith(item);
+              item.style.display = "";
+            }
+            item.classList.remove("interact-dragging");
+          }
+
+          // Fire event if position changed
+          if (finalIndex !== self.dragState.startIndex && finalIndex !== -1) {
+            self.fireDropEvent({
+              oldIndex: self.dragState.startIndex,
+              newIndex: finalIndex,
+              item: item,
+            });
+          }
+
+          // Reset state
+          self.dragState = {
+            item: null,
+            clone: null,
+            placeholder: null,
+            startIndex: -1,
+            currentIndex: -1,
+            scrollInterval: null,
+            originalParent: null,
+            items: [],
+          };
+
+          if (self.options.debug) {
+            console.log("Drag ended", {
+              oldIndex: self.dragState.startIndex,
+              newIndex: finalIndex,
+            });
+          }
+        };
+
+        InteractSortableOS.prototype.calculateDropIndex = function (event) {
+          var self = this;
+          var clone = self.dragState.clone;
+
+          if (!clone) return -1;
+
+          var cloneRect = clone.getBoundingClientRect();
+          var items = Array.from(
+            self.options.list.querySelectorAll(self.options.itemSelector)
+          );
+
+          for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            if (item === self.dragState.item) continue;
+
+            var rect = item.getBoundingClientRect();
+            var midpoint = rect.top + rect.height / 2;
+
+            if (cloneRect.top + cloneRect.height / 2 < midpoint) {
+              return i > self.dragState.startIndex ? i - 1 : i;
+            }
+          }
+
+          return items.length - 1;
+        };
+
+        InteractSortableOS.prototype.fireDropEvent = function (data) {
+          var self = this;
+
+          var event = new CustomEvent("interact-drop", {
+            detail: {
+              oldIndex: data.oldIndex,
+              newIndex: data.newIndex,
+              itemId: data.item.getAttribute("data-id") || data.item.id || null,
+              sourceId: self.options.list.id || null,
+              targetId: self.options.list.id || null,
+              item: data.item,
+            },
+            bubbles: true,
+            cancelable: true,
+          });
+
+          self.options.list.dispatchEvent(event);
+
+          if (self.options.debug) {
+            console.log("Event fired: interact-drop", event.detail);
+          }
+        };
+
+        InteractSortableOS.prototype.setupScrollZones = function () {
+          var self = this;
+
+          // Create invisible scroll zones for visual debugging
+          if (self.options.debug) {
+            var topZone = document.createElement("div");
+            topZone.className = "interact-scroll-zone top";
+            topZone.style.background = "rgba(255, 0, 0, 0.1)";
+
+            var bottomZone = document.createElement("div");
+            bottomZone.className = "interact-scroll-zone bottom";
+            bottomZone.style.background = "rgba(0, 0, 255, 0.1)";
+
+            if (self.container && self.container !== self.options.list) {
+              self.container.style.position = "relative";
+              self.container.appendChild(topZone);
+              self.container.appendChild(bottomZone);
+            }
+          }
+        };
+
+        InteractSortableOS.prototype.startAutoScroll = function () {
+          var self = this;
+
+          self.stopAutoScroll();
+
+          self.dragState.scrollInterval = setInterval(function () {
+            if (!self.dragState.clone || !self.container) return;
+
+            var clone = self.dragState.clone;
+            var cloneRect = clone.getBoundingClientRect();
+            var containerRect = self.container.getBoundingClientRect();
+
+            var scrollSpeed = self.options.scrollSpeed;
+            var threshold = self.options.scrollThreshold;
+
+            // Check top boundary
+            if (cloneRect.top < containerRect.top + threshold) {
+              var distance = Math.max(
+                0,
+                containerRect.top + threshold - cloneRect.top
+              );
+              var speed = Math.min(
+                scrollSpeed,
+                (distance / threshold) * scrollSpeed
+              );
+              self.container.scrollTop -= speed;
+            }
+
+            // Check bottom boundary
+            if (cloneRect.bottom > containerRect.bottom - threshold) {
+              var distance = Math.max(
+                0,
+                cloneRect.bottom - (containerRect.bottom - threshold)
+              );
+              var speed = Math.min(
+                scrollSpeed,
+                (distance / threshold) * scrollSpeed
+              );
+              self.container.scrollTop += speed;
+            }
+          }, 16); // ~60fps
+        };
+
+        InteractSortableOS.prototype.stopAutoScroll = function () {
+          var self = this;
+
+          if (self.dragState.scrollInterval) {
+            clearInterval(self.dragState.scrollInterval);
+            self.dragState.scrollInterval = null;
+          }
+        };
+
+        InteractSortableOS.prototype.setupEventListeners = function () {
+          var self = this;
+
+          // Prevent default touch behaviors on handles
+          self.options.list.addEventListener(
+            "touchstart",
+            function (e) {
+              if (e.target.closest(self.options.handleSelector)) {
+                e.preventDefault();
+              }
+            },
+            { passive: false }
+          );
+        };
+
+        InteractSortableOS.prototype.destroy = function () {
+          var self = this;
+
+          // Stop any ongoing operations
+          self.stopAutoScroll();
+
+          // Remove interact.js bindings
+          interact(self.options.itemSelector, {
+            context: self.options.list,
+          }).unset();
+
+          // Clean up any remaining DOM elements
+          if (self.dragState.clone) {
+            self.dragState.clone.remove();
+          }
+          if (self.dragState.placeholder) {
+            self.dragState.placeholder.remove();
+          }
+
+          // Remove scroll zones if in debug mode
+          if (self.options.debug) {
+            var zones = self.container.querySelectorAll(
+              ".interact-scroll-zone"
+            );
+            zones.forEach(function (zone) {
+              zone.remove();
+            });
+          }
+
+          if (self.options.debug) {
+            console.log("InteractSortableOS destroyed");
+          }
+        };
+
+        // Factory function
+        InteractSortableOS.create = function (options) {
+          return new InteractSortableOS(options);
+        };
+
+        return InteractSortableOS;
+      });
+
+      /* ==========================================
+           Demo Implementation
+           ========================================== */
+
+      // Generate demo items
+      function generateDemoItems() {
+        var list = document.getElementById("sortableList");
+        var items = [
+          {
+            id: "item-1",
+            title: "First Task",
+            desc: "This is the first sortable item",
+          },
+          {
+            id: "item-2",
+            title: "Second Task",
+            desc: "Drag from the handle on the left",
+          },
+          {
+            id: "item-3",
+            title: "Third Task",
+            desc: "Auto-scroll works near edges",
+          },
+          {
+            id: "item-4",
+            title: "Fourth Task",
+            desc: "Mobile-optimized interactions",
+          },
+          { id: "item-5", title: "Fifth Task", desc: "OutSystems compatible" },
+          {
+            id: "item-6",
+            title: "Sixth Task",
+            desc: "Controlled mode preserves state",
+          },
+          {
+            id: "item-7",
+            title: "Seventh Task",
+            desc: "Y-axis locked movement",
+          },
+          { id: "item-8", title: "Eighth Task", desc: "Smooth animations" },
+        ];
+
+        items.forEach(function (item) {
+          var el = document.createElement("div");
+          el.className = "interact-sortable-item";
+          el.setAttribute("data-id", item.id);
+          el.innerHTML =
+            '<div class="interact-sortable-item-content">' +
+            '<div class="drag-handle"></div>' +
+            '<div class="interact-sortable-item-body">' +
+            "<strong>" +
+            item.title +
+            "</strong><br>" +
+            '<small style="color: #666;">' +
+            item.desc +
+            "</small>" +
+            "</div>" +
+            "</div>";
+          list.appendChild(el);
+        });
+      }
+
+      // Initialize demo
+      var sortableInstance = null;
+      var eventLog = document.getElementById("eventLog");
+      var logMessages = [];
+
+      function addLog(message) {
+        var timestamp = new Date().toLocaleTimeString();
+        logMessages.unshift("[" + timestamp + "] " + message);
+        if (logMessages.length > 10) logMessages.pop();
+        eventLog.textContent = logMessages.join("\n");
+      }
+
+      function initSortable() {
+        if (sortableInstance) {
+          sortableInstance.destroy();
+        }
+
+        var controlled = document.getElementById("controlledMode").checked;
+        var debug = document.getElementById("debugMode").checked;
+
+        sortableInstance = InteractSortableOS.create({
+          list: document.getElementById("sortableList"),
+          controlled: controlled,
+          debug: debug,
+        });
+
+        addLog(
+          "Initialized in " +
+            (controlled ? "controlled" : "optimistic") +
+            " mode"
+        );
+      }
+
+      // Listen for drop events
+      document
+        .getElementById("sortableList")
+        .addEventListener("interact-drop", function (e) {
+          var detail = e.detail;
+          addLog(
+            "DROP: " +
+              detail.itemId +
+              " moved from " +
+              detail.oldIndex +
+              " to " +
+              detail.newIndex
+          );
+
+          // In controlled mode, you would update your data model here
+          // and re-render the list through OutSystems
+          if (document.getElementById("controlledMode").checked) {
+            console.log(
+              "Controlled mode: Update your data model and re-render",
+              detail
+            );
+          }
+        });
+
+      // Setup controls
+      document
+        .getElementById("controlledMode")
+        .addEventListener("change", initSortable);
+      document
+        .getElementById("debugMode")
+        .addEventListener("change", initSortable);
+
+      // Initialize on page load
+      generateDemoItems();
+      initSortable();
+      addLog("Demo loaded - try dragging items!");
+    </script>
+  </body>
+</html>
